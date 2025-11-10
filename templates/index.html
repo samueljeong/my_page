@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>콘텐츠 제작 도구</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <style>
+    /* 혹시 없을까봐 여기에도 넣어줄게 */
+    .view { display: none; }
+    .view.active { display: block; }
+
+    #view-secret .card-like {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid rgba(255,255,255,0.04);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+    }
+    #view-secret label {
+      display:block;
+      margin-bottom:8px;
+    }
+    #view-secret .input {
+      width:100%;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="title">콘텐츠 제작 도구</div>
+    <div class="topbar">
+  <div class="container" style="display:flex; gap:10px; align-items:center;">
+    <a href="/" class="nav-btn {{ 'active' if request.path=='/' else '' }}">매일성경</a>
+    <a href="/sermon" class="nav-btn {{ 'active' if request.path.startswith('/sermon') else '' }}">설교</a>
+    <a href="/visit" class="nav-btn {{ 'active' if request.path.startswith('/visit') else '' }}">심방</a>
+    <!-- 비밀 탭 -->
+    <a id="btnSecret" href="javascript:void(0);" class="nav-btn">비밀 도구</a>
+  </div>
+</div>
+  </header>
+
+  <main class="container">
+    <!-- 비밀 도구 버튼 -->
+   
+
+    <!-- ───────── 매일성경 화면 ───────── -->
+    <section id="view-bible" class="view active">
+      <div class="page-wrap">
+        <!-- 왼쪽: 입력 영역 -->
+        <div class="left-col">
+          <!-- 날짜 -->
+          <div class="block">
+            <label class="block-title">날짜</label>
+            <div class="date-row">
+              <input id="dateMonth" type="number" min="1" max="12" />
+              <span>월</span>
+              <input id="dateDay" type="number" min="1" max="31" />
+              <span>일</span>
+              <span id="dateWeekday" class="weekday">(요일)</span>
+            </div>
+          </div>
+
+          <!-- 본문 -->
+          <div class="block">
+            <label for="verse" class="block-title">본문</label>
+            <input id="verse" type="text" class="input" placeholder="예: 레위기 26:13" />
+          </div>
+
+          <div class="block">
+            <label for="verseText" class="block-title">본문 내용</label>
+            <textarea id="verseText" class="input auto-resize" placeholder="성경 구절 전체를 여기에 붙여넣으세요."></textarea>
+          </div>
+
+          <!-- 메시지 생성 버튼 -->
+          <div class="block">
+            <div class="btn-row">
+              <button id="btnMakeMorning">☀️ 오전 메시지</button>
+              <button id="btnMakeEvening" class="secondary">🌙 저녁 메시지</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 오른쪽: 출력/프롬프트 영역 -->
+        <div class="right-col">
+          <!-- 로딩 표시 -->
+          <div id="loadingBar" class="loading hidden">생성 중입니다... 잠시만요.</div>
+
+          <!-- 지침 박스 -->
+          <div class="output-col">
+            <button id="toggleGuides" class="collapse-btn">지침 열기/닫기</button>
+            <div id="guidelineContent" class="guideline-content hidden">
+              <div class="guideline-tabs">
+                <button class="g-tab active" data-g="morning">오전 지침</button>
+                <button class="g-tab" data-g="evening">저녁 지침</button>
+                <button class="g-tab" data-g="img">이미지 프롬프트 지침</button>
+              </div>
+              <textarea id="guideMorning" class="input auto-resize mt-8" placeholder="오전 지침을 입력하세요."></textarea>
+              <textarea id="guideEvening" class="input auto-resize mt-8 hidden" placeholder="저녁 지침을 입력하세요."></textarea>
+              <textarea id="guideImgPrompt" class="input auto-resize mt-8 hidden" placeholder="이미지 프롬프트 제작용 지침을 여기에 적으세요."></textarea>
+              <div class="btn-row mt-8">
+                <button id="btnSaveGuides">💾 지침 저장</button>
+                <span id="guideSaveStatus" class="status"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 메시지 영역 -->
+          <div class="message-row">
+            <div class="output-col">
+              <h3>오전 메시지</h3>
+              <textarea id="morningMessage" class="output-edit auto-resize"></textarea>
+              <div class="btn-row mt-6">
+                <button id="btnCopyMorning" class="secondary">복사</button>
+              </div>
+            </div>
+
+            
+            <div class="output-col">
+              <h3>저녁 메시지</h3>
+              <textarea id="eveningMessage" class="output-edit auto-resize"></textarea>
+              <div class="btn-row mt-6">
+                <button id="btnCopyEvening" class="secondary">복사</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 프롬프트 영역 -->
+          <div class="prompt-row">
+            <div class="output-col">
+              <div class="btn-row">
+                <button id="btnGenMorningImg" class="ghost">🖼 오전 이미지 프롬프트 생성</button>
+              </div>
+              <div id="morningImgBox" class="imgfx-box hidden">
+                <h4>오전 이미지 프롬프트 (3개)</h4>
+                <div id="morningImgPrompts" class="imgfx-grid"></div>
+                <h4 class="mt-6">오전 배경음악 프롬프트</h4>
+                <textarea id="morningMusic" class="input auto-resize"></textarea>
+                <button id="btnCopyMorningMusic" class="secondary mt-6">복사</button>
+              </div>
+            </div>
+            <div class="output-col">
+              <div class="btn-row">
+                <button id="btnGenEveningImg" class="ghost">🖼 저녁 이미지 프롬프트 생성</button>
+              </div>
+              <div id="eveningImgBox" class="imgfx-box hidden">
+                <h4>저녁 이미지 프롬프트 (3개)</h4>
+                <div id="eveningImgPrompts" class="imgfx-grid"></div>
+                <h4 class="mt-6">저녁 배경음악 프롬프트</h4>
+                <textarea id="eveningMusic" class="input auto-resize"></textarea>
+                <button id="btnCopyEveningMusic" class="secondary mt-6">복사</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 지침 관리 화면 ───────── -->
+    <section id="view-guides" class="view">
+      <div class="panel">
+        <h2>지침 관리</h2>
+        <p>이건 나중에 다른 페이지용 지침 추가할 때 쓰면 돼.</p>
+      </div>
+    </section>
+
+    <!-- ───────── 비밀 계산 도구 화면 ───────── -->
+    <section id="view-secret" class="view" style="display:none;">
+      <div class="page-wrap">
+        <div class="left-col" style="max-width:520px;">
+          <div class="block">
+            <h2>중국 원가 → 한국 판매가 계산기</h2>
+            <p style="opacity:.6;">비밀번호 통과한 사람만 보는 영역입니다.</p>
+          </div>
+
+          <div class="block card-like">
+            <h3>1. 기본 정보</h3>
+            <label>중국 원가 (CNY)
+              <input id="cn-price" type="number" class="input" placeholder="예: 120">
+            </label>
+            <label>환율 (1 CNY → KRW)
+              <input id="exchange-rate" type="number" class="input" value="190">
+            </label>
+            <label>국제/해상 운임 (원)
+              <input id="intl-fee" type="number" class="input" value="0">
+            </label>
+            <label>국내 물류/포장비 (원)
+              <input id="domestic-fee" type="number" class="input" value="0">
+            </label>
+          </div>
+
+          <div class="block card-like">
+            <h3>2. 세금</h3>
+            <label>관세율 (%)
+              <input id="duty-rate" type="number" class="input" value="0" step="0.1">
+            </label>
+            <label>부가세율 (%)
+              <input id="vat-rate" type="number" class="input" value="10" step="0.1">
+            </label>
+            <label>기타 세금/부가비용 (원)
+              <input id="other-tax" type="number" class="input" value="0">
+            </label>
+          </div>
+
+          <div class="block card-like">
+            <h3>3. 판매 채널 수수료</h3>
+            <label>쿠팡 수수료 (%)
+              <input id="coupang-fee" type="number" class="input" value="13" step="0.1">
+            </label>
+            <label>네이버 수수료 (%)
+              <input id="naver-fee" type="number" class="input" value="6" step="0.1">
+            </label>
+            <label>결제(카드) 수수료 (%)
+              <input id="card-fee" type="number" class="input" value="3" step="0.1">
+            </label>
+          </div>
+
+          <div class="block card-like">
+            <h3>4. 마진 설정</h3>
+            <label>희망 마진율 (%)
+              <input id="margin-rate" type="number" class="input" value="30" step="0.1">
+            </label>
+          </div>
+
+          <button id="calc-btn" class="secondary" style="margin-top:12px;">계산하기</button>
+
+          <div id="calc-result" class="block card-like" style="margin-top:16px; display:none;">
+            <h3>결과</h3>
+            <p id="base-cost-line"></p>
+            <h4 style="margin-top:12px;">쿠팡 판매가 제안</h4>
+            <p id="coupang-result"></p>
+            <h4 style="margin-top:12px;">네이버 판매가 제안</h4>
+            <p id="naver-result"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/js/main.js"></script>
+  <script src="/static/js/bible.js"></script>
+  <script src="/static/js/guides.js"></script>
+  <script src="/static/js/secret.js"></script>
+</body>
+</html>

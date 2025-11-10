@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>심방 / 장례</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    .visit-wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 18px 24px 60px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 18px;
+      align-items: flex-start;
+    }
+    .v-block {
+      background: rgba(15,23,42,.32);
+      border: 1px solid rgba(148,163,184,.12);
+      border-radius: 10px;
+      padding: 10px 12px 14px;
+      margin-bottom: 12px;
+    }
+    .v-title {
+      font-size: 13px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .v-input, .v-textarea {
+      width: 100%;
+      box-sizing: border-box;
+      background: rgba(15,23,42,.35);
+      border: 1px solid rgba(148,163,184,.25);
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 7px 9px;
+      font-size: 13px;
+    }
+    .v-textarea {
+      min-height: 90px;
+      resize: none;
+      overflow: hidden;
+    }
+    .btn {
+      background: #2563eb;
+      border: none;
+      color: #fff;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .right-top-box {
+      background: rgba(15,23,42,.28);
+      border: 1px solid rgba(148,163,184,.1);
+      border-radius: 10px;
+      padding: 10px 12px 12px;
+      margin-bottom: 12px;
+    }
+    .g-tab { background: rgba(148,163,184,.08); border:none; padding:3px 10px; border-radius:6px; color:#e2e8f0; cursor:pointer; }
+    .g-tab.active{ background:#2563eb; }
+    .hidden{ display:none !important; }
+
+    .suggest-box {
+      background: rgba(15,23,42,.28);
+      border: 1px solid rgba(148,163,184,.1);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .suggest-item {
+      border: 1px solid rgba(148,163,184,.17);
+      border-radius: 8px;
+      padding: 7px 9px 9px;
+      margin-bottom: 8px;
+    }
+    .suggest-item h4 { margin: 0 0 3px; font-size: 13px; }
+    .suggest-item p  { margin: 0 0 6px; font-size: 12px; line-height: 1.4; }
+    .sermon-box textarea {
+      width: 100%;
+      min-height: 160px;
+      background: rgba(15,23,42,.35);
+      border: 1px solid rgba(148,163,184,.1);
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 7px 9px;
+      resize: none;
+      overflow: hidden;
+    }
+    .records {
+      margin-top: 12px;
+    }
+    .records button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      margin-bottom: 4px;
+      background: rgba(148,163,184,.05);
+      border:1px solid rgba(148,163,184,.1);
+    }
+  </style>
+</head>
+<body>
+  <!-- 상단 네비 -->
+  <div class="topbar">
+    <div class="container" style="display:flex; gap:10px; align-items:center;">
+      <a href="/" class="nav-btn">매일성경</a>
+      <a href="/sermon" class="nav-btn">설교</a>
+      <a href="/visit" class="nav-btn active">심방/장례</a>
+    </div>
+  </div>
+
+  <div class="visit-wrap">
+    <!-- 왼쪽 -->
+    <div>
+      <div class="v-block">
+        <div class="v-title">대상자 이름</div>
+        <input id="visitName" class="v-input" placeholder="예: 홍길동 권사님" />
+      </div>
+      <div class="v-block">
+        <div class="v-title">심방 종류</div>
+        <input id="visitType" class="v-input" placeholder="예: 장례 위로, 이사 심방, 병문안 ..." />
+      </div>
+      <div class="v-block">
+        <div class="v-title">상황 / 사유</div>
+        <textarea id="visitReason" class="v-textarea auto-resize" placeholder="가정형편, 병원 상황, 위로가 필요한 배경 등을 자세히 적어주세요."></textarea>
+      </div>
+      <div class="v-block">
+        <button id="btnSuggest" class="btn">본문 추천 받기</button>
+      </div>
+
+      <!-- 저장된 기록 -->
+      <div class="v-block">
+        <div class="v-title">저장된 설교 기록</div>
+        <div id="visitRecords" class="records"></div>
+      </div>
+    </div>
+
+    <!-- 오른쪽 -->
+    <div>
+      <!-- 지침이 제일 위 -->
+      <div class="right-top-box">
+        <button id="btnGuideToggle" class="btn" style="background:rgba(148,163,184,.15);color:#e2e8f0;">지침 열기 / 닫기</button>
+        <div id="guideArea" class="hidden" style="margin-top:8px;">
+          <div style="display:flex; gap:6px; margin-bottom:6px;">
+            <button class="g-tab active" data-g="default">일반 지침</button>
+            <button class="g-tab" data-g="funeral">장례</button>
+            <button class="g-tab" data-g="visit">심방</button>
+          </div>
+          <textarea id="guideText" class="v-textarea auto-resize" placeholder="이 페이지에서 사용할 지침을 적어두면 저장됩니다."></textarea>
+          <button id="btnGuideSave" class="btn" style="margin-top:6px;">지침 저장</button>
+          <span id="guideSaveStatus" style="margin-left:6px; font-size:12px;"></span>
+        </div>
+      </div>
+
+      <!-- 본문 제안 -->
+      <div class="suggest-box">
+        <div class="v-title">본문 제안</div>
+        <div id="suggestList">본문 추천을 먼저 해주세요.</div>
+      </div>
+
+      <!-- 설교문 박스 -->
+      <div class="suggest-box sermon-box">
+        <div class="v-title">생성된 설교문</div>
+        <textarea id="visitSermon" class="auto-resize" placeholder="여기에 GPT가 만든 설교문이 표시됩니다."></textarea>
+        <button id="btnSaveVisit" class="btn" style="margin-top:6px;">설교문 저장</button>
+        <span id="saveVisitStatus" style="margin-left:6px; font-size:12px;"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingBar" class="hidden" style="position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#0f172a; border:1px solid rgba(148,163,184,.3); padding:6px 12px; border-radius:6px;">GPT로 작업 중...</div>
+
+  <script src="{{ url_for('static', filename='js/visit.js') }}"></script>
+</body>
+</html>

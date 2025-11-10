@@ -1,0 +1,207 @@
+<!-- templates/sermon.html -->
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>설교 프롬프트 제작</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <style>
+      .page-wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 16px;
+        padding: 16px 20px 60px;
+      }
+      .left-col input,
+      .left-col textarea {
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .block {
+        margin-bottom: 12px;
+      }
+      .output-box {
+        background: rgba(15, 23, 42, 0.35);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 10px;
+        padding: 10px 12px 14px;
+      }
+      textarea {
+        background: rgba(15, 23, 42, 0.35);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+        border-radius: 10px;
+        color: #e2e8f0;
+        width: 100%;
+        box-sizing: border-box;
+        min-height: 90px;
+        resize: none;
+        overflow: hidden;
+      }
+      .btn-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      button {
+        background: #2563eb;
+        border: none;
+        color: #fff;
+        border-radius: 10px;
+        padding: 6px 12px;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: rgba(148, 163, 184, 0.12);
+      }
+      .hidden {
+        display: none !important;
+      }
+      .guideline-tabs {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 8px;
+      }
+      .g-tab {
+        background: rgba(148, 163, 184, 0.08);
+        border: none;
+        color: #e2e8f0;
+        padding: 4px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .g-tab.active {
+        background: #2563eb;
+      }
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+      }
+      .loading {
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-size: 13px;
+        margin-bottom: 12px;
+        display: none;
+      }
+      .loading.show {
+        display: inline-block;
+      }
+      /* 나눔지 박스 */
+      #discussionBox {
+        background: rgba(15, 23, 42, 0.35);
+        border: 1px solid rgba(148, 163, 184, 0.14);
+        border-radius: 10px;
+        padding: 10px 12px 14px;
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+ <div class="topbar">
+  <div class="container" style="display:flex; gap:10px; align-items:center;">
+    <a href="/" class="nav-btn {{ 'active' if request.path=='/' else '' }}">매일성경</a>
+    <a href="/sermon" class="nav-btn {{ 'active' if request.path.startswith('/sermon') else '' }}">설교</a>
+    <a href="/visit" class="nav-btn {{ 'active' if request.path.startswith('/visit') else '' }}">심방</a>
+  </div>
+</div>
+    </div>
+
+    <div class="page-wrap">
+      <!-- 왼쪽 입력 -->
+      <div class="left-col">
+        <div class="block">
+          <label>카테고리</label>
+          <select id="sermonCategory" class="input">
+            <option value="새벽">새벽</option>
+            <option value="수요성경공부">수요성경공부</option>
+            <option value="금요기도회">금요기도회</option>
+            <option value="속회공과">속회공과</option>
+            <option value="청년부">청년부</option>
+            <option value="청소년부">청소년부</option>
+            <option value="장례">장례</option>
+            <option value="심방">각종 심방</option>
+          </select>
+        </div>
+        <div class="block">
+          <label>설교 제목 (선택)</label>
+          <input id="sermonTitle" placeholder="비워두면 GPT가 추천 제목을 넣게 한다." />
+        </div>
+        <div class="block">
+          <label>본문</label>
+          <input id="sermonVerse" placeholder="예: 창 1:1-10" />
+        </div>
+        <div class="block">
+          <label>본문 내용 (선택)</label>
+          <textarea id="sermonPassage" class="auto-resize" placeholder="본문 전체를 넣으면 분석이 더 정확합니다."></textarea>
+        </div>
+        <div class="block btn-row">
+          <button id="btnAnalyze" title="본문을 객관적으로 분해">본문 분석</button>
+        </div>
+        <!-- 청년/청소년 때만 보일 붙여넣기 -->
+        <div id="youthInput" class="block hidden">
+          <label>설교 원고 붙여넣기 (나눔지용)</label>
+          <textarea id="sermonRawText" class="auto-resize" placeholder="여기에 설교 원고 전체를 붙여넣으세요."></textarea>
+          <button id="btnMakeDiscussion" style="margin-top: 6px">나눔지 생성</button>
+        </div>
+      </div>
+
+      <!-- 오른쪽 -->
+      <div class="right-col">
+        <!-- 지침 -->
+        <div class="output-box">
+          <button id="btnToggleGuides">지침 열기 / 닫기</button>
+          <div id="guideWrap" class="hidden" style="margin-top: 10px">
+            <div class="guideline-tabs">
+              <button class="g-tab active" data-g="analysis">본문 분석 지침</button>
+              <button class="g-tab" data-g="sermon">설교문 지침</button>
+              <button class="g-tab" data-g="discussion">나눔지 지침</button>
+            </div>
+            <textarea id="guideAnalysis" class="auto-resize"></textarea>
+            <textarea id="guideSermon" class="auto-resize hidden"></textarea>
+            <textarea id="guideDiscussion" class="auto-resize hidden"></textarea>
+            <button id="btnSaveGuides" style="margin-top: 6px">💾 지침 저장</button>
+            <span id="guideSaveStatus" style="margin-left: 6px; font-size: 12px"></span>
+          </div>
+        </div>
+
+        <!-- 분석 결과 -->
+        <div class="output-box">
+          <div class="loading" id="loadingBar">GPT로 분석 중...</div>
+          <h3>본문 분석</h3>
+          <div class="two-col">
+            <div>
+              <label>① 배경/객관 정보</label>
+              <textarea id="analysisBackground" class="auto-resize"></textarea>
+            </div>
+            <div>
+              <label>② 본문 비교·원어 정리</label>
+              <textarea id="analysisTextual" class="auto-resize"></textarea>
+            </div>
+          </div>
+          <button id="btnMakeSermonPrompt" style="margin-top: 8px">설교문 프롬포트 작성</button>
+        </div>
+
+        <!-- 설교문 프롬포트 -->
+        <div class="output-box">
+          <h3>설교문 프롬포트</h3>
+          <textarea id="sermonPrompt" class="auto-resize"></textarea>
+          <button id="btnCopySermonPrompt" style="margin-top: 6px">프롬포트 복사</button>
+        </div>
+
+        <!-- 나눔지 출력 -->
+        <div id="discussionBox" class="hidden">
+          <h3>나눔지</h3>
+          <textarea id="discussionOutput" class="auto-resize"></textarea>
+          <button id="btnCopyDiscussion" style="margin-top: 6px">나눔지 복사</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/js/sermon.js"></script>
+  </body>
+</html>
