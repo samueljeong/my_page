@@ -617,6 +617,115 @@ def api_visit_records():
 def visit_page():
     return render_template("visit.html")
 
+# -----------------------------
+# 11. 이미지 프롬프트 생성
+# -----------------------------
+@app.route("/api/image-prompts", methods=["POST"])
+def api_image_prompts():
+    data = request.get_json() or {}
+    message = data.get("message", "").strip()
+    when = data.get("when", "morning")
+
+    # 지침 불러오기
+    guides = load_guides()
+    bible_guides = guides.get("bible", {})
+    extra_guide = bible_guides.get(
+        "image_prompt",
+        "묵상 메시지를 3개의 장면으로 나눠서 성경 시대 분위기의 이미지 프롬프트를 만든다. 텍스트/자막은 넣지 않는다.",
+    )
+
+    # GPT한테 줄 프롬프트
+    prompt = f"""
+너는 성경 묵상 이미지를 만드는 보조 도구다.
+아래 묵상 내용을 읽고 3개의 장면으로 나눠라.
+각 장면마다 한국어(ko)와 영어(en) 프롬프트를 둘 다 써라.
+
+조건:
+- 시대 배경: 성경 시대, 고대 이스라엘
+- 텍스트/자막/글씨는 넣지 말 것
+- 시간대: {when}
+- 추가 지침: {extra_guide}
+
+응답 형식 예시는 아래와 같다. 이 형식을 최대한 비슷하게 써라.
+
+1) ko: ...
+   en: ...
+2) ko: ...
+   en: ...
+3) ko: ...
+   en: ...
+
+묵상 내용:
+{message}
+""".strip()
+
+    try:
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "너는 구조화된 목록을 잘 만드는 어시스턴트다."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.7,
+        )
+        raw_text = resp.choices[0].message.content.strip()
+    except Exception as e:
+        # 혹시라도 GPT 호출이 터지면 기본값이라도 주자
+        print("image prompt error:", e)
+        return jsonify({
+            "prompts": [
+                {
+                    "ko": "성경 시대 새벽 들판, 따뜻한 아침빛, 기도하는 사람, 텍스트 없음",
+                    "en": "biblical era dawn field, warm morning light, praying person, no text"
+                },
+                {
+                    "ko": "예루살렘 근처 마을, 자연광, 사람들의 일상, 텍스트 없음",
+                    "en": "village near Jerusalem, natural light, daily life, no text"
+                },
+                {
+                    "ko": "조용한 방 안에서 말씀을 묵상하는 장면, 부드러운 조명, 텍스트 없음",
+                    "en": "quiet indoor scene, person meditating on scripture, soft lighting, no text"
+                },
+            ]
+        })
+
+    # ---- 여기서 텍스트 파싱 (대충 써도 돌아가게) ----
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    shots = []
+    current = {"ko": "", "en": ""}
+
+    for line in lines:
+        # 새 번호 시작
+        if line[0].isdigit() and ")" in line:
+            # 이전 것 저장
+            if current["ko"] or current["en"]:
+                shots.append(current)
+            current = {"ko": "", "en": ""}
+            continue
+
+        if line.lower().startswith("ko:"):
+            current["ko"] = line.split(":", 1)[1].strip()
+        elif line.lower().startswith("en:"):
+            current["en"] = line.split(":", 1)[1].strip()
+        else:
+            # 형식 안 맞게 한 줄로 써준 경우
+            if not current["ko"]:
+                current["ko"] = line
+            elif not current["en"]:
+                current["en"] = line
+
+    # 마지막 것도 추가
+    if current["ko"] or current["en"]:
+        shots.append(current)
+
+    # 만약 3개 안 나왔으면 채워 넣기
+    while len(shots) < 3:
+        shots.append({
+            "ko": "성경 시대 장면, 자연광, 텍스트 없음",
+            "en": "biblical era scene, natural light, no text"
+        })
+
+    return jsonify({"prompts": shots[:3]})
 
 # -----------------------------
 # 서버 실행
