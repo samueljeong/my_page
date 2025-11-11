@@ -10,15 +10,12 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 # -----------------------------
-# 0. 환경변수(.env) 정확히 읽기
+# 0. 환경변수(.env) 읽기
 # -----------------------------
-# 이 파일(app.py)이 있는 폴더에서 .env를 찾도록 고정
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = BASE_DIR / ".env"
 load_dotenv(dotenv_path)
 
-# .env 안에 이렇게 들어있어야 함:
-# OPENAI_API_KEY=sk-xxxx...
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -48,6 +45,7 @@ def ensure_icloud_dir() -> bool:
 
 
 def get_guide_path() -> Path:
+    # iCloud 쓸 수 있으면 iCloud, 아니면 로컬
     if ensure_icloud_dir():
         return ICLOUD_GUIDE_PATH
     return LOCAL_GUIDE_PATH
@@ -67,15 +65,18 @@ def load_guides() -> dict:
 def save_guides(data: dict):
     path = get_guide_path()
 
+    # 메인 저장
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+    # 백업 저장
     ts = datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     backup_path = path.with_name(f"guidelines_{ts}.json")
     try:
         with open(backup_path, "w", encoding="utf-8") as bf:
             json.dump(data, bf, ensure_ascii=False, indent=2)
     except Exception:
+        # 백업 실패해도 서버는 계속 돌아가야 하니까 패스
         pass
 
 
@@ -102,7 +103,7 @@ def index():
 @app.route("/api/guides", methods=["GET", "POST"])
 def api_guides():
     if request.method == "GET":
-        return jsonify(load_guides())
+      return jsonify(load_guides())
 
     data = request.get_json() or {}
     current = load_guides()
@@ -344,13 +345,93 @@ def api_bible():
 
 
 # -----------------------------
-# 9. 묵상 번역 (영어/일본어)
+# 9. 이미지 프롬프트 생성 (매일성경에서 호출)
+# -----------------------------
+@app.route("/api/image-prompts", methods=["POST"])
+def api_image_prompts():
+    """
+    프론트(static/js/bible.js)가 /api/image-prompts 로
+    { message: "...", when: "morning"|"evening" } 을 보내오면
+    3개의 샷을 돌려준다.
+    """
+    data = request.get_json() or {}
+    message = data.get("message", "").strip()
+    when = data.get("when", "morning")
+
+    guides = load_guides()
+    bible_guides = guides.get("bible", {})
+    extra_guide = bible_guides.get(
+        "image_prompt",
+        "메시지의 내용을 3개의 시각적 장면으로 나눠서 성경 시대 배경 이미지 프롬프트를 만들어라. 텍스트나 자막은 넣지 말라.",
+    )
+
+    # GPT에게 JSON만 달라고 강하게 요청
+    prompt = f"""
+다음은 성경 묵상 메시지다. 이 메시지를 3개의 장면으로 나누어서 이미지 프롬프트를 만들어라.
+각 장면마다 한국어(ko)와 영어(en)를 모두 작성하라.
+
+조건:
+- 시대 배경: 성경 시대, 고대 이스라엘
+- 텍스트/자막/글씨는 포함하지 말 것
+- 카메라 구도, 조명, 분위기를 한 줄에 표현
+- 시간대: {when}
+- 추가 지침: {extra_guide}
+
+반드시 아래 JSON 형식 그대로만 응답하라.
+
+{{
+  "prompts": [
+    {{"ko": "...", "en": "..."}},
+    {{"ko": "...", "en": "..."}},
+    {{"ko": "...", "en": "..."}}
+  ]
+}}
+
+묵상 메시지:
+{message}
+""".strip()
+
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "너는 JSON만 출력하는 도우미다."},
+                {"role": "user", "content": prompt},
+            ],
+            response_format={"type": "json_object"},
+        )
+        raw = completion.choices[0].message.content
+        parsed = json.loads(raw)
+    except Exception:
+        # 혹시라도 JSON이 아니게 돌아오면 기본값
+        parsed = {
+            "prompts": [
+                {
+                    "ko": "성경 시대 아침 들판, 따뜻한 햇살, 묵상하는 분위기, 텍스트 없음",
+                    "en": "biblical era morning field, warm sunlight, devotional mood, no text",
+                },
+                {
+                    "ko": "고대 이스라엘 마을, 자연광, 사람들의 일상, 텍스트 없음",
+                    "en": "ancient Israel village, natural light, daily life, no text",
+                },
+                {
+                    "ko": "실내에서 기도하는 장면, 부드러운 조명, 텍스트 없음",
+                    "en": "indoor prayer scene, soft light, no text",
+                },
+            ]
+        }
+
+    return jsonify(parsed)
+
+
+# -----------------------------
+# 10. 묵상 번역 (영어/일본어)
 # -----------------------------
 @app.route("/api/translate", methods=["POST"])
 def api_translate():
     data = request.get_json() or {}
     text = data.get("text", "")
-    target = data.get("target", "en")  # en | ja
+    target = data.get("target", "en")
 
     if not text:
         return jsonify({"ok": False, "error": "no text"}), 400
@@ -382,7 +463,7 @@ def api_translate():
 
 
 # -----------------------------
-# 10. visit 페이지
+# 11. visit 기능
 # -----------------------------
 VISIT_FILE = BASE_DIR / "visit_records.json"
 
@@ -541,8 +622,6 @@ def visit_page():
 # 서버 실행
 # -----------------------------
 if __name__ == "__main__":
-    # Render 같은 PaaS에서는 PORT라는 환경변수를 줍니다.
     port = int(os.environ.get("PORT", 3001))
     print(f"🟢 Flask 서버를 {port} 포트로 시작합니다...")
-    # 반드시 0.0.0.0 으로!
     app.run(host="0.0.0.0", port=port)
